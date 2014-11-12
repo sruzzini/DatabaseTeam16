@@ -1,9 +1,11 @@
-CREATE OR REPLACE TRIGGER SellShare
-AFTER INSERT ON trxlog
+CREATE OR REPLACE TRIGGER EnsureMutualDate
+AFTER INSERT ON mutualdate
 FOR EACH ROW
-WHEN (new.action = 'sell')
 BEGIN
-	sell_share(:new.trans_id, :new.login, :new.symbol, :new.num_shares);
+	SELECT COUNT(*) INTO @cnt FROM mutualdate;
+	if (@cnt > 1) then
+		DELETE FROM mutualdate WHERE c_date = :new.c_date;
+	end if;
 END;
 /
 commit;

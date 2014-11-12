@@ -229,53 +229,10 @@ commit;
 
 
 
-----------------------------------------------------------------------------------
--- Create Triggers
 
---*****************************************************--
---					Deposit Trigger                    --
---*****************************************************--
-CREATE OR REPLACE TRIGGER MakeDeposit
-AFTER INSERT ON trxlog
-FOR EACH ROW
-WHEN (new.action = 'deposit')
-BEGIN
-
-END;
-/
-commit;
---*****************************************************--
---					  Sell Trigger                     --
---*****************************************************--
-CREATE OR REPLACE TRIGGER SellShare
-AFTER INSERT ON trxlog
-FOR EACH ROW
-WHEN (new.action = 'sell')
-BEGIN
-	sell_share(:new.trans_id, :new.login, :new.symbol, :new.num_shares);
-END;
-/
-commit;
---*****************************************************--
---					   Buy Trigger                     --
---*****************************************************--
-CREATE OR REPLACE TRIGGER BuyShare
-AFTER INSERT ON trxlog
-FOR EACH ROW
-WHEN (new.action = 'buy')
-BEGIN
-	if (:new.num_shares > 0) then
-		buy_share_num(:new.trans_id, :new.login, :new.symbol, :new.num_shares);
-	else
-		buy_share_amount(:new.trans_id, :new.login, :new.symbol, :new.amount);
-	end if;
-END;
-/
-commit;
-
-----------------------------------------------------------------------------------
--- Create Stored Procedures
-
+--**************************************************************************************************
+-- 										Stored Procedures
+--**************************************************************************************************
 ------------Sell Shares--------------
 CREATE OR REPLACE PROCEDURE sell_share(transaction in int,
 									   c_login in varchar2, 
@@ -313,7 +270,6 @@ BEGIN
 		UPDATE trxlog SET amount = total_cost WHERE trans_id = transaction;
 	else
 		dbms_output.put_line('Can not sell more shares than you own');
-		DELETE FROM trxlog WHERE trans_id = transaction;
 	end if;
 END;
 /
@@ -409,8 +365,23 @@ END;
 /
 commit;
 
-----------------------------------------------------------------------------------
--- Create Functions
+-------------Ensure Single Mutual Date--------------
+CREATE OR REPLACE PROCEDURE EnsureDate(m_date in date)
+AS
+num_rows int;
+BEGIN
+	SELECT COUNT(*) INTO num_rows FROM mutualdate;
+	if (num_rows > 1) then
+		DELETE FROM mutualdate WHERE c_date = m_date;
+	end if;
+END;
+/
+commit;
+
+
+--**************************************************************************************************
+-- 										Functions
+--**************************************************************************************************
 
 ------------Get Fund Price--------------
 CREATE OR REPLACE FUNCTION get_fund_price(f_symbol in varchar2) return float
@@ -452,6 +423,55 @@ end;
 commit;
 
 
+--**************************************************************************************************
+-- 										Triggers
+--**************************************************************************************************
+--------------------Deposit Trigger----------------------
+CREATE OR REPLACE TRIGGER MakeDeposit
+AFTER INSERT ON trxlog
+FOR EACH ROW
+WHEN (new.action = 'deposit')
+BEGIN
+
+END;
+/
+commit;
+
+--------------------Sell Trigger----------------------
+CREATE OR REPLACE TRIGGER SellShare
+AFTER INSERT ON trxlog
+FOR EACH ROW
+WHEN (new.action = 'sell')
+BEGIN
+	sell_share(:new.trans_id, :new.login, :new.symbol, :new.num_shares);
+END;
+/
+commit;
+
+--------------------Buy Trigger----------------------
+CREATE OR REPLACE TRIGGER BuyShare
+AFTER INSERT ON trxlog
+FOR EACH ROW
+WHEN (new.action = 'buy')
+BEGIN
+	if (:new.num_shares > 0) then
+		buy_share_num(:new.trans_id, :new.login, :new.symbol, :new.num_shares);
+	else
+		buy_share_amount(:new.trans_id, :new.login, :new.symbol, :new.amount);
+	end if;
+END;
+/
+commit;
+
+--------------------Ensure Trigger----------------------
+CREATE OR REPLACE TRIGGER EnsureMutualDate
+AFTER INSERT ON mutualdate
+FOR EACH ROW
+BEGIN
+	EnsureDate(:new.c_date);
+END;
+/
+commit;
 
 
 
