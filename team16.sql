@@ -117,6 +117,7 @@ create table  mutualdate (
 	constraint pk_date primary key(c_date)
 		INITIALLY IMMEDIATE DEFERRABLE
 );
+commit;
 
 
 --!!  INSERT DATA  !!--
@@ -223,7 +224,7 @@ INSERT INTO trxlog(trans_id,login,symbol,t_date,action,num_shares,price,amount)
 			 values(2, 'mike', 'RE', TO_DATE('29-MAR-14', 'DD-MON-YY'), 'buy', 50, 10, 500);
 INSERT INTO trxlog(trans_id,login,symbol,t_date,action,num_shares,price,amount)
 			 values(3, 'mike', 'MM', TO_DATE('01-APR-14', 'DD-MON-YY'), 'sell', 50, 15, 750);
-
+commit;
 
 
 
@@ -242,7 +243,7 @@ BEGIN
 
 END;
 /
-
+commit;
 --*****************************************************--
 --					  Sell Trigger                     --
 --*****************************************************--
@@ -254,7 +255,7 @@ BEGIN
 	sell_share(:new.trans_id, :new.login, :new.symbol, :new.num_shares);
 END;
 /
-
+commit;
 --*****************************************************--
 --					   Buy Trigger                     --
 --*****************************************************--
@@ -270,16 +271,16 @@ BEGIN
 	end if;
 END;
 /
-
+commit;
 
 ----------------------------------------------------------------------------------
 -- Create Stored Procedures
 
 ------------Sell Shares--------------
-CREATE OR REPLACE PROCEDURE sell_share(transaction int,
-									   c_login varchar2(10), 
-									   m_symbol varchar2(20),
-									   num int)
+CREATE OR REPLACE PROCEDURE sell_share(transaction in int,
+									   c_login in varchar2, 
+									   m_symbol in varchar2,
+									   num in int)
 AS
 initial_shares int;
 final_shares int;
@@ -301,7 +302,7 @@ BEGIN
 		UPDATE customer SET balance = final_balance WHERE login = c_login;
 
 		-- Update owns shares
-		if (final_shares > 0)
+		if (final_shares > 0) then
 			UPDATE owns SET shares = final_shares WHERE (login = c_login AND symbol = m_symbol);
 		else
 			DELETE FROM owns WHERE (login = c_login AND symbol = m_symbol);
@@ -316,12 +317,12 @@ BEGIN
 	end if;
 END;
 /
-
+commit;
 -------------Buy Shares (number)--------------
-CREATE OR REPLACE PROCEDURE buy_share_num(transaction int,
-									   	  c_login varchar2(10), 
-									   	  m_symbol varchar2(20),
-									   	  num int)
+CREATE OR REPLACE PROCEDURE buy_share_num(transaction in int,
+									   	  c_login in varchar2, 
+									   	  m_symbol in varchar2,
+									   	  num in int)
 AS
 initial_shares int;
 final_shares int;
@@ -345,7 +346,7 @@ BEGIN
 			UPDATE customer set balance = final_balance where login = c_login;
 
 			-- Update owns shares
-			if (initial_shares > 0)
+			if (initial_shares > 0) then
 				UPDATE owns set shares = final_shares where (login = c_login AND symbol = m_symbol);
 			else
 				INSERT INTO owns VALUES (c_login, m_symbol, num);
@@ -362,12 +363,12 @@ BEGIN
 	end if;
 END;
 /
-
+commit;
 -------------Buy Shares (Amount)--------------
-CREATE OR REPLACE PROCEDURE buy_share_amount(transaction int,
-									   	  	 c_login varchar2(10), 
-									   	  	 m_symbol varchar2(20),
-									   	  	 m_amount float)
+CREATE OR REPLACE PROCEDURE buy_share_amount(transaction in int,
+									   	  	 c_login in varchar2, 
+									   	  	 m_symbol in varchar2,
+									   	  	 m_amount in float)
 AS
 initial_shares int;
 final_shares int;
@@ -392,10 +393,10 @@ BEGIN
 		UPDATE customer set balance = final_balance where login = c_login;
 		
 		-- Update owns shares
-		if (initial_shares > 0)
+		if (initial_shares > 0) then
 			UPDATE owns set shares = final_shares where (login = c_login AND symbol = m_symbol);
-		else
-			INSERT INTO owns VALUES (c_login, m_symbol, num);
+		else 
+			INSERT INTO owns(login,symbol,shares) VALUES (c_login, m_symbol, num_shares);
 		end if;
 
 		-- Update transaction with price
@@ -406,13 +407,13 @@ BEGIN
 	end if;
 END;
 /
-
+commit;
 
 ----------------------------------------------------------------------------------
 -- Create Functions
 
 ------------Get Fund Price--------------
-CREATE OR REPLACE FUNCTION get_fund_price(f_symbol varchar(20)) return float
+CREATE OR REPLACE FUNCTION get_fund_price(f_symbol in varchar2) return float
 IS
 curr_price float;
 BEGIN
@@ -424,9 +425,9 @@ BEGIN
 	return (curr_price);
 END;
 /
-
+commit;
 ------------Get Allocation Number--------------
-CREATE OR REPLACE FUNCTION get_curr_allocation(c_login varchar(10)) return int
+CREATE OR REPLACE FUNCTION get_curr_allocation(c_login in varchar2) return int
 IS
 allocation_num int;
 BEGIN
@@ -436,19 +437,19 @@ BEGIN
 	return (allocation_num);
 END;
 /
-
+commit;
 ------------Get First Allocation Date--------------
-CREATE OR REPLACE FUNCTION get_first_allocation(c_login varchar(10)) return date
-IS
+CREATE or REPLACE FUNCTION get_first_allocation(c_login in varchar2) return date
+is
 alloc_date date;
-BEGIN
+begin
 	select nvl(MIN(p_date), TO_DATE('01-JAN-1900', 'DD-MON-YYYY')) into alloc_date 
 		from allocation
 		where (login = c_login);
-	return (allocation_num);
-END;
+	return (alloc_date);
+end;
 /
-
+commit;
 
 
 
