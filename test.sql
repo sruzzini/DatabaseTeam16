@@ -1,24 +1,24 @@
-CREATE or REPLACE PROCEDURE EnsureAllocation(a_num in int,
-											 user in varchar2)
-AS
-firstAlloc date;
-lastAlloc date;
-currDate date;
-begin
-	firstAlloc := get_first_allocation(user);
-	-- an allocation has been made for the user
-	if (firstAlloc <> TO_DATE('01-JAN-1900', 'DD-MON-YYYY')) then
-		lastAlloc := get_last_allocation(user);
-		-- the user has changed there allocation at least once
-		if (firstAlloc <> lastAlloc) then
-			-- ensure that the current month is not the same as lastAlloc month
-			SELECT MAX(c_date) into currDate from mutualdate;
-			if (LAST_DAY(currDate) = LAST_DAY(lastAlloc)) then
-				--months are the same, so remove the tuple
-				DELETE FROM allocation WHERE allocation_no = a_num;
-			end if;
-		end if;
+CREATE OR REPLACE FUNCTION get_fund_price(f_symbol in varchar2) return float
+IS
+curr_price float;
+currdate date;
+yesterdate date;
+BEGIN
+	-- get date of last closing price
+	select MAX(c_date) into currdate from mutualdate;
+	if (to_char(currdate, 'DY') = 'MON') then
+		yesterdate := currdate - 3;
+	elsif (to_char(currdate, 'DY') = 'SUN') then
+		yesterdate := currdate - 2;
+	else
+		yesterdate := currdate - 1;
 	end if;
-end;
+
+	-- get price of fund on last closing date
+	select nvl(price, 0) into curr_price 
+		from closingprice 
+		where (symbol = f_symbol AND  p_date = yesterdate);
+	return (curr_price);
+END;
 /
 commit;
