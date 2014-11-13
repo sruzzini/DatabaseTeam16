@@ -13,6 +13,7 @@ drop table prefers cascade constraints;
 drop table trxlog cascade constraints;
 drop table owns cascade constraints;
 drop table mutualdate cascade constraints;
+commit;
 
 ----------------------------------------------------------------------------------
 -- Create Tables
@@ -234,6 +235,7 @@ commit;
 -- 										Stored Procedures
 --**************************************************************************************************
 ------------Sell Shares--------------
+-- Stephen T. Ruzzini
 CREATE OR REPLACE PROCEDURE sell_share(transaction in int,
 									   c_login in varchar2, 
 									   m_symbol in varchar2,
@@ -274,7 +276,8 @@ BEGIN
 END;
 /
 commit;
--------------Buy Shares (number)--------------
+-------------Buy Shares (number of shares)--------------
+-- Stephen T. Ruzzini
 CREATE OR REPLACE PROCEDURE buy_share_num(transaction in int,
 									   	  c_login in varchar2, 
 									   	  m_symbol in varchar2,
@@ -320,7 +323,8 @@ BEGIN
 END;
 /
 commit;
--------------Buy Shares (Amount)--------------
+-------------Buy Shares (Amount to pay)--------------
+-- Stephen T. Ruzzini
 CREATE OR REPLACE PROCEDURE buy_share_amount(transaction in int,
 									   	  	 c_login in varchar2, 
 									   	  	 m_symbol in varchar2,
@@ -366,6 +370,7 @@ END;
 commit;
 
 -------------Ensure Single Mutual Date--------------
+-- Stephen T. Ruzzini
 CREATE OR REPLACE PROCEDURE EnsureDate(m_date in date)
 AS
 num_rows int;
@@ -378,26 +383,44 @@ END;
 /
 commit;
 
+------------Ensure Prefers Sum to 1--------------
+-- Stephen T. Ruzzini
+CREATE or REPLACE PROCEDURE EnsureSum(a_num in int)
+AS
+total float;
+begin
+	select nvl(SUM(percentage), 0) into total
+		from prefers
+		where allocation_no = a_num;
+	if (total <> 1) then
+		DELETE FROM prefers WHERE allocation_no = a_num;
+	end if;
+end;
+/
+commit;
+
 
 --**************************************************************************************************
 -- 										Functions
 --**************************************************************************************************
 
 ------------Get Fund Price--------------
+-- Stephen T. Ruzzini
 CREATE OR REPLACE FUNCTION get_fund_price(f_symbol in varchar2) return float
 IS
 curr_price float;
+yesterdate date;
 BEGIN
+	select (MAX(c_date) - 1) into yesterdate from mutualdate;
 	select nvl(price, 0) into curr_price 
 		from closingprice 
-		where (symbol = f_symbol AND  p_date = (select MAX(p_date)
-												from closingprice P
-												where P.symbol = f_symbol));
+		where (symbol = f_symbol AND  p_date = yesterdate);
 	return (curr_price);
 END;
 /
 commit;
 ------------Get Allocation Number--------------
+-- Stephen T. Ruzzini
 CREATE OR REPLACE FUNCTION get_curr_allocation(c_login in varchar2) return int
 IS
 allocation_num int;
@@ -410,6 +433,7 @@ END;
 /
 commit;
 ------------Get First Allocation Date--------------
+-- Stephen T. Ruzzini
 CREATE or REPLACE FUNCTION get_first_allocation(c_login in varchar2) return date
 is
 alloc_date date;
@@ -421,7 +445,6 @@ begin
 end;
 /
 commit;
-
 
 --**************************************************************************************************
 -- 										Triggers
@@ -438,6 +461,7 @@ END;
 commit;
 
 --------------------Sell Trigger----------------------
+-- Stephen T. Ruzzini
 CREATE OR REPLACE TRIGGER SellShare
 AFTER INSERT ON trxlog
 FOR EACH ROW
@@ -449,6 +473,7 @@ END;
 commit;
 
 --------------------Buy Trigger----------------------
+-- Stephen T. Ruzzini
 CREATE OR REPLACE TRIGGER BuyShare
 AFTER INSERT ON trxlog
 FOR EACH ROW
@@ -463,7 +488,8 @@ END;
 /
 commit;
 
---------------------Ensure Trigger----------------------
+--------------------Ensure Mutual Date Trigger----------------------
+-- Stephen T. Ruzzini
 CREATE OR REPLACE TRIGGER EnsureMutualDate
 AFTER INSERT ON mutualdate
 FOR EACH ROW
@@ -473,6 +499,16 @@ END;
 /
 commit;
 
+--------------------All Prefers in Allocation Sum to 1 Trigger----------------------
+-- Stephen T. Ruzzini
+CREATE OR REPLACE TRIGGER EnsurePreferSum
+AFTER INSERT ON prefers
+FOR EACH ROW
+BEGIN
+	EnsureSum(:new.allocation_no);
+END;
+/
+commit;
 
 
 
