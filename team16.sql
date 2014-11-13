@@ -399,6 +399,32 @@ end;
 /
 commit;
 
+------------Ensure 1 Allocation per month--------------
+-- Stephen T. Ruzzini
+CREATE or REPLACE PROCEDURE EnsureAllocation(a_num in int,
+											 user in varchar2)
+AS
+firstAlloc date;
+lastAlloc date;
+currDate date;
+begin
+	firstAlloc := get_first_allocation(user);
+	-- an allocation has been made for the user
+	if (firstAlloc <> TO_DATE('01-JAN-1900', 'DD-MON-YYYY')) then
+		lastAlloc := get_last_allocation(user);
+		-- the user has changed there allocation at least once
+		if (firstAlloc <> lastAlloc) then
+			-- ensure that the current month is not the same as lastAlloc month
+			SELECT MAX(c_date) into currDate from mutualdate;
+			if (LAST_DAY(currDate) = LAST_DAY(lastAlloc)) then
+				--months are the same, so remove the tuple
+				DELETE FROM allocation WHERE allocation_no = a_num;
+			end if;
+		end if;
+	end if;
+end;
+/
+commit;
 
 --**************************************************************************************************
 -- 										Functions
@@ -439,6 +465,19 @@ is
 alloc_date date;
 begin
 	select nvl(MIN(p_date), TO_DATE('01-JAN-1900', 'DD-MON-YYYY')) into alloc_date 
+		from allocation
+		where (login = c_login);
+	return (alloc_date);
+end;
+/
+commit;
+------------Get Last Allocation Date--------------
+-- Stephen T. Ruzzini
+CREATE or REPLACE FUNCTION get_last_allocation(c_login in varchar2) return date
+is
+alloc_date date;
+begin
+	select nvl(MAX(p_date), TO_DATE('01-JAN-1900', 'DD-MON-YYYY')) into alloc_date 
 		from allocation
 		where (login = c_login);
 	return (alloc_date);
@@ -510,6 +549,16 @@ END;
 /
 commit;
 
+--------------------Ensure 1 Allocation Change per Month Trigger----------------------
+-- Stephen T. Ruzzini
+CREATE OR REPLACE TRIGGER EnsureAllocationChange
+AFTER INSERT ON allocation
+FOR EACH ROW
+BEGIN
+	EnsureAllocation(:new.allocation_no, :new.login);
+END;
+/
+commit;
 
 
 

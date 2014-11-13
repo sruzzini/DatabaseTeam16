@@ -1,20 +1,24 @@
-drop table prefers cascade constraints;
+CREATE or REPLACE PROCEDURE EnsureAllocation(a_num in int,
+											 user in varchar2)
+AS
+firstAlloc date;
+lastAlloc date;
+currDate date;
+begin
+	firstAlloc := get_first_allocation(user);
+	-- an allocation has been made for the user
+	if (firstAlloc <> TO_DATE('01-JAN-1900', 'DD-MON-YYYY')) then
+		lastAlloc := get_last_allocation(user);
+		-- the user has changed there allocation at least once
+		if (firstAlloc <> lastAlloc) then
+			-- ensure that the current month is not the same as lastAlloc month
+			SELECT MAX(c_date) into currDate from mutualdate;
+			if (LAST_DAY(currDate) = LAST_DAY(lastAlloc)) then
+				--months are the same, so remove the tuple
+				DELETE FROM allocation WHERE allocation_no = a_num;
+			end if;
+		end if;
+	end if;
+end;
+/
 commit;
-
-create table  prefers (
-	allocation_no	int not null,
-	symbol			varchar2(20) not null,
-	percentage		float not null,
-	constraint pk_prefers primary key(allocation_no, symbol)
-		INITIALLY IMMEDIATE DEFERRABLE,
-	constraint fk_allocation_number foreign key(allocation_no) references allocation(allocation_no)
-		INITIALLY DEFERRED DEFERRABLE,
-	constraint fk_fund_prefer foreign key(symbol) references mutualfund(symbol)
-		INITIALLY IMMEDIATE DEFERRABLE,
-	constraint correct_sum CHECK (NOT EXISTS
-			(SELECT * FROM prefers P 
-				WHERE 1 = (SELECT SUM(percentage)
-							FROM prefers X
-							WHERE X.allocation_no = P.allocation_no)))
-	INITIALLY DEFERRED DEFERRABLE
-);
