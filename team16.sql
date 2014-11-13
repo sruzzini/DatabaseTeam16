@@ -416,9 +416,11 @@ begin
 		if (firstAlloc <> lastAlloc) then
 			-- ensure that the current month is not the same as lastAlloc month
 			SELECT MAX(c_date) into currDate from mutualdate;
-			if (LAST_DAY(currDate) = LAST_DAY(lastAlloc)) then
-				--months are the same, so remove the tuple
-				DELETE FROM allocation WHERE allocation_no = a_num;
+			if (to_char(currDate, 'YYYY') = to_char(lastAlloc, 'YYYY')) then
+				if (to_char(currDate, 'MON') = to_char(lastAlloc, 'MON')) then
+					--months are the same, so remove the tuple
+					DELETE FROM allocation WHERE allocation_no = a_num;
+				end if;
 			end if;
 		end if;
 	end if;
