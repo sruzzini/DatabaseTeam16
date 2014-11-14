@@ -369,6 +369,93 @@ END;
 /
 commit;
 
+-------------------Creates Buys in trxlog----------------------------------
+--Michael B. Kudlaty
+CREATE OR REPLACE PROCEDURE investFunds(c_login in varchar2, deposit in float)
+AS
+
+total_buy int;
+alloc_no int;
+num_shares int;
+new_trans_id int;
+num_trans int;
+
+t_date date;
+
+alloc_percentage float;
+p_percentage float;
+initial_balance float;
+
+CURSOR percentage_cursor is 
+	select symbol, percentage
+	from prefers
+	where get_curr_allocation(c_login) = prefers.allocation_no;
+
+share_expense float;
+share_price float;
+
+table_symbol varchar2(20);
+p_symbol varchar2(20);
+
+BEGIN
+
+	--select nvl(balance, 0) into initial_balance from customer where c_login = login;
+
+	initial_balance := initial_balance + deposit;
+
+	
+
+	select MAX(c_date) into t_date
+	from mutualdate;
+
+	select count(trans_id) into num_trans
+	from trxlog;
+
+	new_trans_id :=  num_trans;
+
+	select allocation_no into alloc_no
+	from allocation
+	where (allocation.login = c_login and rownum = 1);
+
+	INSERT INTO trxlog values(new_trans_id, c_login, NULL, t_date, 	'deposit', 	NULL, NULL, initial_balance);
+	
+
+	if(alloc_no != -1) then	
+		open percentage_cursor;
+		LOOP 
+			fetch percentage_cursor into p_symbol, p_percentage;
+			Exit when percentage_cursor % notfound;
+
+      		share_price := get_fund_price(p_symbol);
+      		share_expense := p_percentage * deposit;
+      		num_shares := FLOOR(share_expense/share_price);      		
+
+      		INSERT INTO trxlog values(new_trans_id, 	c_login, 	p_symbol, t_date, 	'buy', 	num_shares, share_price, share_expense);
+
+      		new_trans_id := new_trans_id + 1;
+
+		end loop;
+		close percentage_cursor;
+ 
+	end if;	
+END;
+/
+commit;
+
+------------------Updated customer balance af
+----Michael B. Kudlaty
+--CREATE OR REPLACE PROCEDURE updateBalance(c_login in varchar2, deposit in float)
+--AS
+--initial_balance float;
+--BEGIN
+--	select nvl(balance, 0) into initial_balance from customer where c_login = login;
+--	initial_balance := initial_balance + deposit;
+--
+--	UPDATE customer SET balance = initial_balance WHERE login = c_login;
+--END;
+--/
+--commit;
+
 -------------Ensure Single Mutual Date--------------
 -- Stephen T. Ruzzini
 CREATE OR REPLACE PROCEDURE EnsureDate(m_date in date)
@@ -382,6 +469,7 @@ BEGIN
 END;
 /
 commit;
+
 
 ------------Ensure Prefers Sum to 1--------------
 -- Stephen T. Ruzzini
@@ -501,16 +589,29 @@ commit;
 --**************************************************************************************************
 -- 										Triggers
 --**************************************************************************************************
---------------------Deposit Trigger----------------------
-CREATE OR REPLACE TRIGGER MakeDeposit
-AFTER INSERT ON trxlog
+--------------------Balance Update----------------------
+--Michael B. Kudlaty
+CREATE OR REPLACE TRIGGER InvestDeposit
+AFTER INSERT OR UPDATE ON customer
 FOR EACH ROW
-WHEN (new.action = 'deposit')
+WHEN (new.balance > 0)
 BEGIN
-
+	investFunds(:new.login, :new.balance);
 END;
 /
 commit;
+
+--------------------Deposit Trigger----------------------
+--Michael B. Kudlaty
+--CREATE OR REPLACE TRIGGER MakeDeposit
+--AFTER INSERT ON trxlog
+--FOR EACH ROW
+--WHEN (new.action = 'deposit')
+--BEGIN
+--	updateBalance(:new.login, :new.amount);
+--END;
+--/
+--commit;
 
 --------------------Sell Trigger----------------------
 -- Stephen T. Ruzzini
@@ -572,29 +673,3 @@ BEGIN
 END;
 /
 commit;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
