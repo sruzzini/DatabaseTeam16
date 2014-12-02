@@ -289,8 +289,15 @@ share_price float;
 total_cost float;
 initial_balance float;
 final_balance float;
-BEGIN
-	select nvl(shares, 0) into initial_shares from owns where (login = c_login AND symbol = m_symbol);
+BEGIN	
+	dbms_output.put_line('login: ' || c_login || ', symbol: ' || m_symbol);
+	select count(*) into initial_shares from owns where (login = c_login AND symbol = m_symbol);
+	if (initial_shares < 1) then
+		initial_shares := 0;
+	else
+		select nvl(shares, 0) into initial_shares from owns where (login = c_login AND symbol = m_symbol);
+	end if;
+	
 	select nvl(balance, 0) into initial_balance from customer where c_login = login;
 	-- Ensure we are buying a positive number of shares
 	if (num > 0) then
@@ -410,7 +417,7 @@ BEGIN
 	--from allocation
 	--where (allocation.login = c_login and rownum = 1);
 
-	dbms_output.put_line("tans_id: " + new_trans_id + ", login: " + c_login + ", t_date" + t_date + ", balance" + deposit_amnt);
+	dbms_output.put_line('tans_id: ' || new_trans_id || ', login: ' || c_login || ', t_date: ' || t_date || ', balance: ' || deposit_amnt);
 	INSERT INTO trxlog values(new_trans_id, c_login, NULL, t_date, 	'deposit', 	NULL, NULL, deposit_amnt);
 
 	if(alloc_no != -1) then	
@@ -426,7 +433,7 @@ BEGIN
       		share_expense := p_percentage * deposit_amnt;
       		num_shares := FLOOR(share_expense/share_price);      		
 
-      		dbms_output.put_line("tans_id: " + new_trans_id + ", login: " + c_login + ", symbol:" + p_symbol + ", t_date" + t_date + ", num_shares" + num_shares);
+      		dbms_output.put_line('tans_id: ' || new_trans_id || ', login: ' || c_login || ', symbol: ' || p_symbol || ', t_date: ' || t_date || ', num_shares: ' || num_shares);
       		INSERT INTO trxlog values(new_trans_id, c_login, p_symbol, t_date, 'buy', num_shares, share_price, share_expense);
 		end loop;
 		close percentage_cursor;
@@ -589,8 +596,11 @@ CREATE OR REPLACE TRIGGER InvestDeposit
 AFTER UPDATE ON customer
 FOR EACH ROW
 WHEN (new.balance > old.balance)
+DECLARE
+	deposit_amnt float;
 BEGIN
-	investFunds(:new.login, :new.balance);
+	deposit_amnt := :new.balance - :old.balance;
+	investFunds(:new.login, deposit_amnt);
 END;
 /
 commit;
