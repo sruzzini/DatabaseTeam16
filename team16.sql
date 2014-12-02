@@ -371,20 +371,17 @@ commit;
 
 -------------------Creates Buys in trxlog----------------------------------
 --Michael B. Kudlaty
-CREATE OR REPLACE PROCEDURE investFunds(c_login in varchar2, deposit in float)
+CREATE OR REPLACE PROCEDURE investFunds(c_login in varchar2, deposit_amnt in float)
 AS
 
-total_buy int;
 alloc_no int;
 num_shares int;
 new_trans_id int;
-num_trans int;
 
 t_date date;
 
 alloc_percentage float;
 p_percentage float;
-initial_balance float;
 
 CURSOR percentage_cursor is 
 	select symbol, percentage
@@ -398,32 +395,30 @@ table_symbol varchar2(20);
 p_symbol varchar2(20);
 
 BEGIN
-
-	--select nvl(balance, 0) into initial_balance from customer where c_login = login;
-
-	initial_balance := deposit;
-
-	
-
+	-- Get the trading date
 	select MAX(c_date) into t_date
 	from mutualdate;
 
-	select count(trans_id) into num_trans
+	-- Get the transaction id of the deposit to be made
+	select nvl(count(trans_id), 0) into new_trans_id
 	from trxlog;
 
-	new_trans_id :=  num_trans;
+	--!!  CHANGE THIS  !!--
+	--Use Steve's function to get allocation number here instead
+	alloc_no := get_curr_allocation(c_login);
+	--select allocation_no into alloc_no
+	--from allocation
+	--where (allocation.login = c_login and rownum = 1);
 
-	select allocation_no into alloc_no
-	from allocation
-	where (allocation.login = c_login and rownum = 1);
-
-	dbms_output.put_line("tans_id: " + new_trans_id + ", login: " + c_login + ", t_date" + t_date + ", balance" + initial_balance);
-	INSERT INTO trxlog values(new_trans_id, c_login, NULL, t_date, 	'deposit', 	NULL, NULL, initial_balance);
-	
+	dbms_output.put_line("tans_id: " + new_trans_id + ", login: " + c_login + ", t_date" + t_date + ", balance" + deposit_amnt);
+	INSERT INTO trxlog values(new_trans_id, c_login, NULL, t_date, 	'deposit', 	NULL, NULL, deposit_amnt);
 
 	if(alloc_no != -1) then	
 		open percentage_cursor;
 		LOOP 
+			--increase transaction id so that primary key is maintained
+      		new_trans_id := new_trans_id + 1;
+
 			fetch percentage_cursor into p_symbol, p_percentage;
 			Exit when percentage_cursor % notfound;
 
@@ -432,10 +427,7 @@ BEGIN
       		num_shares := FLOOR(share_expense/share_price);      		
 
       		dbms_output.put_line("tans_id: " + new_trans_id + ", login: " + c_login + ", symbol:" + p_symbol + ", t_date" + t_date + ", num_shares" + num_shares);
-      		INSERT INTO trxlog values(new_trans_id, 	c_login, 	p_symbol, t_date, 	'buy', 	num_shares, share_price, share_expense);
-
-      		new_trans_id := new_trans_id + 1;
-
+      		INSERT INTO trxlog values(new_trans_id, c_login, p_symbol, t_date, 'buy', num_shares, share_price, share_expense);
 		end loop;
 		close percentage_cursor;
  
@@ -594,7 +586,7 @@ commit;
 --------------------Balance Update----------------------
 --Michael B. Kudlaty
 CREATE OR REPLACE TRIGGER InvestDeposit
-AFTER INSERT OR UPDATE ON customer
+AFTER UPDATE ON customer
 FOR EACH ROW
 WHEN (new.balance > old.balance)
 BEGIN
@@ -602,18 +594,6 @@ BEGIN
 END;
 /
 commit;
-
---------------------Deposit Trigger----------------------
---Michael B. Kudlaty
---CREATE OR REPLACE TRIGGER MakeDeposit
---AFTER INSERT ON trxlog
---FOR EACH ROW
---WHEN (new.action = 'deposit')
---BEGIN
---	updateBalance(:new.login, :new.amount);
---END;
---/
---commit;
 
 --------------------Sell Trigger----------------------
 -- Stephen T. Ruzzini
