@@ -401,7 +401,7 @@ BEGIN
 
 	--select nvl(balance, 0) into initial_balance from customer where c_login = login;
 
-	initial_balance := initial_balance + deposit;
+	initial_balance := deposit;
 
 	
 
@@ -417,6 +417,7 @@ BEGIN
 	from allocation
 	where (allocation.login = c_login and rownum = 1);
 
+	dbms_output.put_line("tans_id: " + new_trans_id + ", login: " + c_login + ", t_date" + t_date + ", balance" + initial_balance);
 	INSERT INTO trxlog values(new_trans_id, c_login, NULL, t_date, 	'deposit', 	NULL, NULL, initial_balance);
 	
 
@@ -430,6 +431,7 @@ BEGIN
       		share_expense := p_percentage * deposit;
       		num_shares := FLOOR(share_expense/share_price);      		
 
+      		dbms_output.put_line("tans_id: " + new_trans_id + ", login: " + c_login + ", symbol:" + p_symbol + ", t_date" + t_date + ", num_shares" + num_shares);
       		INSERT INTO trxlog values(new_trans_id, 	c_login, 	p_symbol, t_date, 	'buy', 	num_shares, share_price, share_expense);
 
       		new_trans_id := new_trans_id + 1;
@@ -594,7 +596,7 @@ commit;
 CREATE OR REPLACE TRIGGER InvestDeposit
 AFTER INSERT OR UPDATE ON customer
 FOR EACH ROW
-WHEN (new.balance > 0)
+WHEN (new.balance > old.balance)
 BEGIN
 	investFunds(:new.login, :new.balance);
 END;
