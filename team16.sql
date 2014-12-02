@@ -423,7 +423,7 @@ BEGIN
 			Exit when percentage_cursor % notfound;
 
       		share_price := get_fund_price(p_symbol);
-      		share_expense := p_percentage * deposit;
+      		share_expense := p_percentage * deposit_amnt;
       		num_shares := FLOOR(share_expense/share_price);      		
 
       		dbms_output.put_line("tans_id: " + new_trans_id + ", login: " + c_login + ", symbol:" + p_symbol + ", t_date" + t_date + ", num_shares" + num_shares);
