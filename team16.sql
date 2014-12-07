@@ -13,6 +13,8 @@ drop table prefers cascade constraints;
 drop table trxlog cascade constraints;
 drop table owns cascade constraints;
 drop table mutualdate cascade constraints;
+drop table temp_allocation;
+drop table temp_preferes;
 commit;
 
 ----------------------------------------------------------------------------------
@@ -98,7 +100,8 @@ create table  trxlog (
 	constraint fk_customer_log foreign key(login) references customer(login)
 		INITIALLY IMMEDIATE DEFERRABLE,
 	constraint fk_fund_log foreign key(symbol) references mutualfund(symbol)
-		INITIALLY IMMEDIATE DEFERRABLE
+		INITIALLY IMMEDIATE DEFERRABLE,
+	constraint amount_check CHECK(amount >= 0) DEFERRABLE		
 );
 
 create table  owns (
@@ -110,7 +113,8 @@ create table  owns (
 	constraint fk_customer_owns foreign key(login) references customer(login)
 		INITIALLY IMMEDIATE DEFERRABLE,
 	constraint fk_fund_owns foreign key(symbol) references mutualfund(symbol)
-		INITIALLY IMMEDIATE DEFERRABLE
+		INITIALLY IMMEDIATE DEFERRABLE,
+	constraint share_amount_check CHECK(shares >= 0) DEFERRABLE				
 );
 
 create table  mutualdate (
@@ -227,6 +231,9 @@ INSERT INTO trxlog(trans_id,login,symbol,t_date,action,num_shares,price,amount)
 			 values(3, 'mike', 'MM', TO_DATE('01-APR-14', 'DD-MON-YY'), 'sell', 50, 15, 750);
 commit;
 
+create global temporary table temp_allocation as select * from allocation;
+create global temporary table temp_preferes as select * from prefers;
+
 
 
 
@@ -239,7 +246,9 @@ commit;
 CREATE OR REPLACE PROCEDURE sell_share(transaction in int,
 									   c_login in varchar2, 
 									   m_symbol in varchar2,
-									   num in int)
+									   num in int,
+									   price out float,
+									   amount out float)
 AS
 initial_shares int;
 final_shares int;
@@ -248,9 +257,20 @@ total_cost float;
 initial_balance float;
 final_balance float;
 BEGIN
-	select nvl(shares, 0) into initial_shares from owns where (c_login = login AND m_symbol = symbol);
+	price := get_fund_price(m_symbol);
+	amount := price * num;
+
+	--ALTER TRIGGER InvestDeposit DISABLE;
+	select count(*) into initial_shares from owns where (login = c_login AND symbol = m_symbol);
+	if (initial_shares < 1) then
+		initial_shares := 0;
+	else
+		select nvl(shares, 0) into initial_shares from owns where (login = c_login AND symbol = m_symbol);
+	end if;
+
+	--select nvl(shares, 0) into initial_shares from owns where (c_login = login AND m_symbol = symbol);
 	select nvl(balance, 0) into initial_balance from customer where c_login = login;
-	if (num > initial_shares AND initial_shares > 0) then
+	if (num <= initial_shares AND initial_shares > 0) then
 		share_price := get_fund_price(m_symbol);
 		total_cost := share_price * num;
 
@@ -268,11 +288,13 @@ BEGIN
 		end if;
 
 		-- Update transaction with price
-		UPDATE trxlog SET price = share_price WHERE trans_id = transaction;
-		UPDATE trxlog SET amount = total_cost WHERE trans_id = transaction;
+		--UPDATE trxlog SET price = share_price WHERE trans_id = transaction;
+		--UPDATE trxlog SET amount = total_cost WHERE trans_id = transaction;
 	else
+		UPDATE owns set shares = -1 WHERE (login = c_login AND symbol = m_symbol);
 		dbms_output.put_line('Can not sell more shares than you own');
 	end if;
+	--ALTER TRIGGER InvestDeposit ENABLE
 END;
 /
 commit;
@@ -281,7 +303,9 @@ commit;
 CREATE OR REPLACE PROCEDURE buy_share_num(transaction in int,
 									   	  c_login in varchar2, 
 									   	  m_symbol in varchar2,
-									   	  num in int)
+									   	  num in int,
+									   	  price out float,
+									   	  amount out float)
 AS
 initial_shares int;
 final_shares int;
@@ -290,6 +314,10 @@ total_cost float;
 initial_balance float;
 final_balance float;
 BEGIN	
+
+	price := get_fund_price(m_symbol);
+	amount := price * num;
+
 	dbms_output.put_line('login: ' || c_login || ', symbol: ' || m_symbol);
 	select count(*) into initial_shares from owns where (login = c_login AND symbol = m_symbol);
 	if (initial_shares < 1) then
@@ -298,18 +326,18 @@ BEGIN
 		select nvl(shares, 0) into initial_shares from owns where (login = c_login AND symbol = m_symbol);
 	end if;
 	
-	select nvl(balance, 0) into initial_balance from customer where c_login = login;
+	--select nvl(balance, 0) into initial_balance from customer where c_login = login;
 	-- Ensure we are buying a positive number of shares
 	if (num > 0) then
 		share_price := get_fund_price(m_symbol);
 		total_cost := share_price * num;
 		-- Ensure we have enough money to pay for the shares
-		if (total_cost < initial_balance) then
+		--if (total_cost < initial_balance) then
 			final_shares := initial_shares + num;
-			final_balance := (initial_balance - total_cost);
+			--final_balance := (initial_balance - total_cost);
 
 			-- Update customer balance
-			UPDATE customer set balance = final_balance where login = c_login;
+			--UPDATE customer set balance = final_balance where login = c_login;
 
 			-- Update owns shares
 			if (initial_shares > 0) then
@@ -319,11 +347,11 @@ BEGIN
 			end if;
 
 			-- Update transaction with price
-			UPDATE trxlog SET price = share_price WHERE trans_id = transaction;
-			UPDATE trxlog SET amount = total_cost WHERE trans_id = transaction;
-		else
-			dbms_output.put_line('Insufficient funds.');
-		end if;
+			-- UPDATE trxlog SET price = share_price WHERE trans_id = transaction;
+			-- UPDATE trxlog SET amount = total_cost WHERE trans_id = transaction;
+		--else
+		--	dbms_output.put_line('Insufficient funds.');
+		--end if;
 	else
 		dbms_output.put_line('Must buy a positive number of shares.');
 	end if;
@@ -335,7 +363,10 @@ commit;
 CREATE OR REPLACE PROCEDURE buy_share_amount(transaction in int,
 									   	  	 c_login in varchar2, 
 									   	  	 m_symbol in varchar2,
-									   	  	 m_amount in float)
+									   	  	 m_amount in float,
+									   	  	 price out float,
+									   	  	 amount out float,
+									   	  	 share_num out int)
 AS
 initial_shares int;
 final_shares int;
@@ -345,6 +376,12 @@ total_cost float;
 initial_balance float;
 final_balance float;
 BEGIN
+	
+	price := get_fund_price(m_symbol);
+	share_num := FLOOR(m_amount/price);
+	amount := share_num * price;
+	dbms_output.put_line('m_amount: ' || m_amount || '     sharenum: '||share_num||'       amount: '||amount);
+
 	select nvl(shares, 0) into initial_shares from owns where (login = c_login AND symbol = m_symbol);
 	select nvl(balance, 0) into initial_balance from customer where c_login = login;
 	-- Ensure we have enough money to pay for the shares
@@ -367,10 +404,11 @@ BEGIN
 		end if;
 
 		-- Update transaction with price
-		UPDATE trxlog SET price = share_price WHERE trans_id = transaction;
-		UPDATE trxlog SET amount = total_cost WHERE trans_id = transaction;
+		--UPDATE trxlog SET price = share_price WHERE trans_id = transaction;
+		--UPDATE trxlog SET amount = total_cost WHERE trans_id = transaction;
 	else
 		dbms_output.put_line('Insufficient funds.');
+		UPDATE customer set balance = -1 where login = c_login;
 	end if;
 END;
 /
@@ -378,17 +416,20 @@ commit;
 
 -------------------Creates Buys in trxlog----------------------------------
 --Michael B. Kudlaty
-CREATE OR REPLACE PROCEDURE investFunds(c_login in varchar2, deposit_amnt in float)
+CREATE OR REPLACE PROCEDURE investFunds(c_login in varchar2, deposit_amnt in float, final_balance out float)
 AS
 
 alloc_no int;
 num_shares int;
 new_trans_id int;
 
+
 t_date date;
 
 alloc_percentage float;
 p_percentage float;
+total_cost float;
+--final_balance float;
 
 CURSOR percentage_cursor is 
 	select symbol, percentage
@@ -420,7 +461,9 @@ BEGIN
 	dbms_output.put_line('tans_id: ' || new_trans_id || ', login: ' || c_login || ', t_date: ' || t_date || ', balance: ' || deposit_amnt);
 	INSERT INTO trxlog values(new_trans_id, c_login, NULL, t_date, 	'deposit', 	NULL, NULL, deposit_amnt);
 
+
 	if(alloc_no != -1) then	
+		total_cost := 0;
 		open percentage_cursor;
 		LOOP 
 			--increase transaction id so that primary key is maintained
@@ -431,13 +474,15 @@ BEGIN
 
       		share_price := get_fund_price(p_symbol);
       		share_expense := p_percentage * deposit_amnt;
-      		num_shares := FLOOR(share_expense/share_price);      		
-
+      		num_shares := FLOOR(share_expense/share_price);
+      		share_expense := num_shares * share_price;      		
+      		total_cost := total_cost + share_expense;
       		dbms_output.put_line('tans_id: ' || new_trans_id || ', login: ' || c_login || ', symbol: ' || p_symbol || ', t_date: ' || t_date || ', num_shares: ' || num_shares);
       		INSERT INTO trxlog values(new_trans_id, c_login, p_symbol, t_date, 'buy', num_shares, share_price, share_expense);
 		end loop;
 		close percentage_cursor;
- 
+		final_balance := deposit_amnt - total_cost;
+ 		--UPDATE customer set balance = final_balance where login = c_login;
 	end if;	
 END;
 /
@@ -474,19 +519,29 @@ commit;
 
 ------------Ensure Prefers Sum to 1--------------
 -- Stephen T. Ruzzini
-CREATE or REPLACE PROCEDURE EnsureSum(a_num in int)
-AS
-total float;
-begin
-	select nvl(SUM(percentage), 0) into total
-		from prefers
-		where allocation_no = a_num;
-	if (total <> 1) then
-		DELETE FROM prefers WHERE allocation_no = a_num;
-	end if;
-end;
-/
-commit;
+--CREATE or REPLACE PROCEDURE EnsureSum()
+--AS
+--total float;
+--a_num int;
+--CURSOR allocs is 
+--	select allocation_no
+--	from allocation;
+--begin
+--	open allocs;
+--	LOOP
+--		fetch allocs into a_num;
+--		Exit when allocs % notfound;
+--
+--		select nvl(SUM(percentage), 0) into total
+--			from temp_preferes
+--			where allocation_no = a_num;
+--		if (total <> 1) then
+--			DELETE FROM prefers WHERE allocation_no = a_num;
+--		end if;
+--	end loop;
+--end;
+--/
+--commit;
 
 ------------Ensure 1 Allocation per month--------------
 -- Stephen T. Ruzzini
@@ -567,7 +622,7 @@ is
 alloc_date date;
 begin
 	select nvl(MIN(p_date), TO_DATE('01-JAN-1900', 'DD-MON-YYYY')) into alloc_date 
-		from allocation
+		from temp_allocation
 		where (login = c_login);
 	return (alloc_date);
 end;
@@ -593,14 +648,14 @@ commit;
 --------------------Balance Update----------------------
 --Michael B. Kudlaty
 CREATE OR REPLACE TRIGGER InvestDeposit
-AFTER UPDATE ON customer
+BEFORE UPDATE ON customer
 FOR EACH ROW
-WHEN (new.balance > old.balance)
+WHEN (new.balance > 0)
 DECLARE
 	deposit_amnt float;
 BEGIN
-	deposit_amnt := :new.balance - :old.balance;
-	investFunds(:new.login, deposit_amnt);
+	--deposit_amnt := :new.balance - :old.balance;
+	investFunds(:new.login, :new.balance, :new.balance);
 END;
 /
 commit;
@@ -608,11 +663,13 @@ commit;
 --------------------Sell Trigger----------------------
 -- Stephen T. Ruzzini
 CREATE OR REPLACE TRIGGER SellShare
-AFTER INSERT ON trxlog
+BEFORE INSERT ON trxlog
 FOR EACH ROW
 WHEN (new.action = 'sell')
 BEGIN
-	sell_share(:new.trans_id, :new.login, :new.symbol, :new.num_shares);
+	--ALTER TRIGGER InvestDeposit DISABLE
+	sell_share(:new.trans_id, :new.login, :new.symbol, :new.num_shares, :new.price, :new.amount);
+	--ALTER TRIGGER InvestDeposit ENABLE
 END;
 /
 commit;
@@ -620,14 +677,17 @@ commit;
 --------------------Buy Trigger----------------------
 -- Stephen T. Ruzzini
 CREATE OR REPLACE TRIGGER BuyShare
-AFTER INSERT ON trxlog
+BEFORE INSERT ON trxlog
 FOR EACH ROW
 WHEN (new.action = 'buy')
 BEGIN
+	dbms_output.put_line('NumSHares: '||:new.num_shares);
 	if (:new.num_shares > 0) then
-		buy_share_num(:new.trans_id, :new.login, :new.symbol, :new.num_shares);
+	dbms_output.put_line('Buy Num');
+		buy_share_num(:new.trans_id, :new.login, :new.symbol, :new.num_shares, :new.price, :new.amount);
 	else
-		buy_share_amount(:new.trans_id, :new.login, :new.symbol, :new.amount);
+	dbms_output.put_line('Buy Amount');
+		buy_share_amount(:new.trans_id, :new.login, :new.symbol, :new.amount, :new.price, :new.amount, :new.num_shares);
 	end if;
 END;
 /
@@ -646,14 +706,13 @@ commit;
 
 --------------------All Prefers in Allocation Sum to 1 Trigger----------------------
 -- Stephen T. Ruzzini
-CREATE OR REPLACE TRIGGER EnsurePreferSum
-AFTER INSERT ON prefers
-FOR EACH ROW
-BEGIN
-	EnsureSum(:new.allocation_no);
-END;
-/
-commit;
+--CREATE OR REPLACE TRIGGER EnsurePreferSum
+--AFTER INSERT ON prefers
+--BEGIN
+	--EnsureSum(:new.allocation_no);
+--END;
+--/
+--commit;
 
 --------------------Ensure 1 Allocation Change per Month Trigger----------------------
 -- Stephen T. Ruzzini
