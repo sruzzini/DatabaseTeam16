@@ -49,7 +49,7 @@ commit;
 
 --Mutualfunds that match the keywords ins the description
 set transaction read only name 'getFundsFromSearch';
-SELECT f.symbol, f.description
+SELECT f.symbol, f.name, f.description, f.category, c.price, c.p_date
 	FROM mutualfund f join closingprice c on f.symbol = c.symbol
 	WHERE (c.p_date = get_last_trade_date AND (REGEXP_LIKE(f.description, '^.*bond.*term.*$') OR REGEXP_LIKE(f.description, '^.*term.*bond.*$')));
 commit;

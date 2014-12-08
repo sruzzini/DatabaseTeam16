@@ -664,7 +664,7 @@ commit;
 CREATE OR REPLACE TRIGGER InvestDeposit
 BEFORE UPDATE ON customer
 FOR EACH ROW
-WHEN (new.balance > 0)
+WHEN (new.balance > old.balance)
 DECLARE
 	deposit_amnt float;
 BEGIN
