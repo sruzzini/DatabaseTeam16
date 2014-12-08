@@ -3,6 +3,10 @@
 import java.io.*;
 import java.sql.*;
 import java.util.regex.*;
+import java.util.HashMap;
+import java.util.ArrayList;
+import java.text.NumberFormat;
+
 
 public class BetterFuture {
 
@@ -738,12 +742,23 @@ public class BetterFuture {
             statement = connection.createStatement();
             resultSet = statement.executeQuery(query);
             
+            ArrayList<String> uniqueSymbols = new ArrayList<String>();
+            HashMap<String, Float> current_values = new HashMap<String, Float>();
+            HashMap<String, Float> cost_values = new HashMap<String, Float>();
+            HashMap<String, Float> sum_sales = new HashMap<String, Float>();
+            
+
             //print results
             int rownum = 1;
             System.out.println("Stocks owned:  Num Shares, Current Price  ->   Value\n");
             while (resultSet.next())
             {
             	String sym = resultSet.getString(2);
+                if(uniqueSymbols.indexOf(sym) == -1)
+                {
+                    uniqueSymbols.add(sym);
+                }     
+
             	int shares = resultSet.getInt(3);
             	float price = resultSet.getFloat(4);
             	float value = resultSet.getFloat(5);
@@ -753,6 +768,8 @@ public class BetterFuture {
             							"  ->  "+value;
             	System.out.println(x);
             	rownum = rownum + 1;
+
+                current_values.put(sym, value);
             }
             System.out.print("\n");
             resultSet.close();
@@ -769,23 +786,28 @@ public class BetterFuture {
             
             //print results
             rownum = 1;
-            System.out.println("Stocks owned:  Cost Value\n");
+            System.out.println("Cost Value for each Symbol\n");
             while (resultSet.next())
             {
             	String sym = resultSet.getString(2);
+                if(uniqueSymbols.indexOf(sym) == -1)
+                {
+                    uniqueSymbols.add(sym);
+                }
             	float value = resultSet.getFloat(3);
             	String x = ""+rownum+") "+sym+
             							":  $"+value;
             	System.out.println(x);
             	rownum = rownum + 1;
+                cost_values.put(sym, value);
             }
             System.out.print("\n");
             resultSet.close();
             
             //gets Sum Sales
-            query = "SELECT trxlog.login, trxlog.symbol, sum(trxlog.amount) as cost_values " +
+            query = "SELECT trxlog.login, trxlog.symbol, sum(trxlog.amount)  as sum_sales " +
     				"FROM trxlog " +
-    				"WHERE trxlog.action = 'buy' and trxlog.login = '"+userLogin+"' " +
+    				"WHERE trxlog.action = 'sell' and trxlog.login = '"+userLogin+"' " +
     				"GROUP BY  trxlog.login, trxlog.symbol";
     		connection.setAutoCommit(false);
             connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
@@ -794,19 +816,53 @@ public class BetterFuture {
             
             //print results
             rownum = 1;
-            System.out.println("Stocks owned:  Cost Value\n");
+            System.out.println("Sum of Sales for each Symbol\n");
             while (resultSet.next())
             {
             	String sym = resultSet.getString(2);
+                if(uniqueSymbols.indexOf(sym) == -1)
+                {
+                    uniqueSymbols.add(sym);
+                }                
             	float value = resultSet.getFloat(3);
             	String x = ""+rownum+") "+sym+
             							":  $"+value;
             	System.out.println(x);
             	rownum = rownum + 1;
+                sum_sales.put(sym, value);                
             }
             System.out.print("\n");
             resultSet.close();
-            
+
+            //Calculating the yield and displaying the results
+            NumberFormat fmt = NumberFormat.getCurrencyInstance();
+            rownum = 1;
+            System.out.println("" + "Symbol Yield\n");
+            for(String s: uniqueSymbols)
+            {
+                float c = 0;        //cost_value
+                float sa = 0;       //sum_sales 
+                float cu = 0;       //current_value
+
+                if(current_values.containsKey(s))
+                {
+                    cu = current_values.get(s);
+                }
+
+                if(cost_values.containsKey(s))
+                {
+                    c = cost_values.get(s);
+                }
+
+                if(sum_sales.containsKey(s))
+                {
+                    sa = sum_sales.get(s);
+                }                
+
+                System.out.println(""+rownum+") " + s + ":\t$" + (cu - (c - sa)));
+                rownum++;
+            }
+            System.out.print("\n");
             
             connection.commit();
     	}
