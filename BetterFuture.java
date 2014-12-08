@@ -1,3 +1,5 @@
+//team16
+
 import java.io.*;
 import java.sql.*;
 import java.util.regex.*;
@@ -52,33 +54,48 @@ public class BetterFuture {
         	{
             	System.out.println("Please enter the operation you would like to perform:");
             	printUserOptions();
-            	System.out.print("Choice (0-9): ");
+            	System.out.print("Choice (0-7): ");
             	
             	//get selection
             	int selection = 0;
             	try { selection = Integer.parseInt(readInput()); }
-            	catch (NumberFormatException e) { System.out.println("Invalid entry.  Quitting App."); System.exit(1);};
+            	catch (NumberFormatException e) { System.out.println("Invalid entry."); selection = -1;};
             
             	if (selection == 0) { quitApplication(); }
             	else if (selection == 1) //Browse Mutual Funds
             	{
-            		
+            		int status = browseFunds();
+            		if (status == -1) System.out.println("Invalid Entry.  No search was performed.");
+            		else if (status != 0) System.out.println("A database error occurred.  No search was performed");
             	}
             	else if (selection == 2) //Search Mutual Funds
             	{
-            		
+            		int status = searchFunds();
+            		if (status == -1) System.out.println("Invalid Entry.  No search was performed.");
+            		else if (status != 0) System.out.println("A database error occurred.  No search was performed");
             	}
             	else if (selection == 3) //Invest
             	{
-            		
+            		int status = invest();
+            		if (status == -1) System.out.println("Invest Not Performed: Invalid amount.");
+            		else if (status == 0) System.out.println("Invest Successful!");
+            		else System.out.println("Invest Not Performed: A database error occurred.");
             	}
             	else if (selection == 4) //Sell Shares
             	{
-            		
+            		int status = sellShares();
+            		if (status == -2) System.out.println("Sale Not Performed: Invalid amount of shares.");
+            		else if (status == -1) System.out.println("Sale Not Performed: You don't own any shares of that fund.");
+            		else if (status == 0) System.out.println("Sale Successful!");
+            		else System.out.println("Sale Not Performed: A database error occurred.");
             	}
             	else if (selection == 5) //Buy Shares
             	{
-            		
+            		int status = buyShares();
+            		if (status == -2) System.out.println("Buy Not Performed: Not enough money to buy.");
+            		else if (status == -1) System.out.println("Buy Not Performed: Fund does not exist.");
+            		else if (status == 0) System.out.println("Buy Successful!");
+            		else System.out.println("Buy Not Performed: A database error occurred.");
             	}
             	else if (selection == 6) //Change Allocation Preference
             	{
@@ -86,9 +103,10 @@ public class BetterFuture {
             	}
             	else if (selection == 7) //View Portfolio
             	{
-            		
+            		int status = viewPortfolio();
+            		if (status == -1) System.out.println("Invalid Entry.  Portfolio not displayed.");
+            		else if (status != 0) System.out.println("A database error occurred.  Portfolio not displayed.");
             	}
-            	else { System.out.println("Invalid selection. Quitting application."); quitApplication(); }
             }
         }
         else if (result == 1)  //Admin Interface
@@ -104,7 +122,7 @@ public class BetterFuture {
             	//get selection
             	int selection = 0;
             	try { selection = Integer.parseInt(readInput()); }
-            	catch (NumberFormatException e) { System.out.println("Invalid entry.  Quitting App."); System.exit(1);};
+            	catch (NumberFormatException e) { System.out.println("Invalid entry."); selection = -1;};
             
             	if (selection == 0) { quitApplication(); }
             	else if (selection == 1) //Register New Customer
@@ -139,15 +157,18 @@ public class BetterFuture {
             		else if (status == 0) System.out.println("Date Updated Successfully!");
             		else System.out.println("Date Not Updated: A database error occurred.");
             	}
-            	else if (selection == 5)
+            	else if (selection == 5) //View Volume Statistics
             	{
-            		//View Volume Statistics
+            		int status = volumeStats();
+            		if (status < 0) { System.out.println("Result Not Gotten: Invalid entry"); }
+            		else if (status != 0) System.out.println("Results Not Gotten: A database error occurred.");
             	}
-            	else if (selection == 6)
+            	else if (selection == 6) //View Investor Statistics
             	{
-            		//View Investor Statistics
+            		int status = investorStats();
+            		if (status < 0) { System.out.println("Result Not Gotten: Invalid entry"); }
+            		else if (status != 0) System.out.println("Results Not Gotten: A database error occurred.");
             	}
-            	else {System.out.println("Invalid selection. Quitting application."); quitApplication();  }
             }
         }
         else { System.out.println("Unexpected error occurred.  Quitting application."); quitApplication(); }
@@ -225,61 +246,585 @@ public class BetterFuture {
         return result;
     }
     
-    //Quits out of the application safely
-    private void quitApplication()
-    {
-        System.out.println("Thank you for using the Better Future Investment application.  Goodbye!");
-        try { connection.close(); }
-        catch (Exception e) { System.out.println("Error closing connection"); }
-        System.exit(1);
-    }
     
-    //Prints the options that a user can perform
-    private void printUserOptions()
-    {
-        System.out.println("\t1: Browse Mutual Funds");
-        System.out.println("\t2: Search Mutual Funds");
-        System.out.println("\t3: Invest");
-        System.out.println("\t4: Sell Shares");
-        System.out.println("\t5: Buy Shares");
-        System.out.println("\t6: Change Allocation Preference");
-        System.out.println("\t7: View Portfolio");
-        System.out.println("\t8: View Volume Statistics");
-        System.out.println("\t9: View Investor Statistics");
-        System.out.println("\t0: Exit");
-    }
     
-    //Prints the options that an admin can perform
-    private void printAdminOptions()
+    //\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\ User Functions \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
+    //-----------------------------------------------------------------------------------
+    //Browse Funds
+    //returns:
+    //	-1: invalid entry
+    //	0: success
+    private int browseFunds()
     {
-        System.out.println("\t1: Register New Customer");
-        System.out.println("\t2: Update Share Quotes");
-        System.out.println("\t3: Add New Mutual Fund");
-        System.out.println("\t4: Update Date");
-        System.out.println("\t5: View Volume Statistics");
-        System.out.println("\t6: View Investor Statistics");
-        System.out.println("\t0: Exit");
-    }
-    
-    //Gets the user's input from the command line
-    private String readInput()
-    {
-        String result = "";
-        try
+    	int status = 0;
+    	
+    	System.out.println("\nBrowse Mutual Funds.\nPlease select browsing option.");
+    	System.out.println("\t1: Browse All Funds");
+    	System.out.println("\t2: Browse Funds By Category");
+    	System.out.print("Choice:  ");
+    	String choice = readInput();
+    	String category = "*";
+    	
+    	if (choice.equals("1")) { status = browseCategory(category); }
+        else if (choice.equals("2"))
         {
-            result = reader.readLine();
+          	System.out.println("\nPlease select a category.");
+    		System.out.println("\t1: Fixed");
+    		System.out.println("\t2: Stocks");
+    		System.out.println("\t3: Bonds");
+    		System.out.println("\t4: Mixed");
+    		System.out.print("Choice:  ");
+    		category = readInput();
+    		if (category.equals("1")) { status = browseCategory("fixed"); }
+    		else if (category.equals("2")) { status = browseCategory("stocks"); }
+    		else if (category.equals("3")) { status = browseCategory("bonds"); }
+    		else if (category.equals("4")) { status = browseCategory("mixed"); }
+    		else { status = -1; }
         }
-        catch (IOException e)
-        {
-            System.out.println("IOException occurred.  Quiting Application.");
-            quitApplication();
-        }
-        return result;
+        else { status = -1; }
+    	
+    	return status;
     }
+    
+    private int browseCategory(String category)
+    {
+    	int status = 0;
+    	try {
+            System.out.println("\nPlease select a sorting method.");
+    		System.out.println("\t1: Descending Price");
+    		System.out.println("\t2: Alphabetically");
+    		System.out.print("Choice:  ");
+    		String sorting = readInput();
+            
+            if (category.equals("*")) //all categories
+            {
+            	query = "SELECT f.symbol, f.name, f.description, f.category, c.price, c.p_date " +
+            			"FROM mutualfund f join closingprice c on f.symbol = c.symbol " +
+            			"WHERE c.p_date = get_last_trade_date ";
+            	if (sorting.equals("1")) { query = query + "ORDER BY c.price DESC"; }
+            	else if (sorting.equals("2")) { query = query + "ORDER BY f.name ASC"; }
+            	else { return -1; }
+            }
+            else //specific category
+            {
+            	query = "SELECT f.symbol, f.name, f.description, f.category, c.price, c.p_date " +
+            			"FROM mutualfund f join closingprice c on f.symbol = c.symbol " +
+            			"WHERE f.category = '"+category+"' AND c.p_date = get_last_trade_date ";
+            	if (sorting.equals("1")) { query = query + "ORDER BY c.price DESC"; }
+            	else if (sorting.equals("2")) { query = query + "ORDER BY f.name ASC"; }
+            	else { return -1; }
+            }
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            statement = connection.createStatement();
+            resultSet = statement.executeQuery(query);
+            
+            //print results
+            int rownum = 1;
+            System.out.println("Results:\n");
+            while (resultSet.next())
+            {
+            	String sym = resultSet.getString(1);
+            	String nam = resultSet.getString(2);
+            	String des = resultSet.getString(3);
+            	String cat = resultSet.getString(4);
+            	float pri = resultSet.getFloat(5);
+            	Date dat = resultSet.getDate(6);
+            	String x = ""+rownum+") "+sym+
+            							":"+nam+
+            							"\n\t"+des+
+            							"\n\t"+cat+
+            							"\n\t$"+pri+" : "+dat.toString();
+            	System.out.println(x);
+            	rownum = rownum + 1;
+            }
+            System.out.print("\n");
+            resultSet.close();
+            connection.commit();
+        }
+        catch (Exception e){
+            System.out.println("Machine Error: "+e);
+            status = 1;
+        }
+        finally {
+            try { if (statement != null) statement.close(); }
+            catch (SQLException e) { System.out.println("Can't close Statement"); }
+        }
+        return status;
+    }
+    
+    
+    //Search Funds
+    //returns:
+    //	-1: invalid entry
+    //	0: success
+    private int searchFunds()
+    {
+    	int status = 0;
+    	
+    	System.out.println("\tSearch Mutual Funds.\nPlease select browsing option.");
+    	System.out.println("\t1: Search with 1 keyword");
+    	System.out.println("\t2: Search with 2 keywords");
+    	System.out.print("Choice:  ");
+    	String choice = readInput();
+    	
+    	if (choice.equals("1")) 
+    	{ 
+    		System.out.print("keyword:  ");
+    		String keyword = readInput();
+    		
+    		query = "SELECT f.symbol, f.name, f.description, f.category, c.price, c.p_date " +
+          			"FROM mutualfund f join closingprice c on f.symbol = c.symbol " +
+          			"WHERE c.p_date = get_last_trade_date AND REGEXP_LIKE(f.description, '^.*"+keyword+".*$')";
+    	}
+        else if (choice.equals("2"))
+        {
+        	System.out.print("first keyword:  ");
+    		String keyword1 = readInput();
+    		System.out.print("second keyword:  ");
+    		String keyword2 = readInput();
+          	
+          	query = "SELECT f.symbol, f.name, f.description, f.category, c.price, c.p_date " +
+          			"FROM mutualfund f join closingprice c on f.symbol = c.symbol " +
+          			"WHERE (c.p_date = get_last_trade_date AND (REGEXP_LIKE(f.description, '^.*"+keyword1+".*"+keyword2+".*$') OR REGEXP_LIKE(f.description, '^.*"+keyword2+".*"+keyword1+".*$')))";
+        }
+        else { return -1; }
+        
+        //perform the search
+    	try {
+    		System.out.println(query);
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            statement = connection.createStatement();
+            resultSet = statement.executeQuery(query);
+            
+            //print results
+            int rownum = 1;
+            System.out.println("Results:\n");
+            while (resultSet.next())
+            {
+            	String sym = resultSet.getString(1);
+            	String nam = resultSet.getString(2);
+            	String des = resultSet.getString(3);
+            	String cat = resultSet.getString(4);
+            	float pri = resultSet.getFloat(5);
+            	Date dat = resultSet.getDate(6);
+            	String x = ""+rownum+") "+sym+
+            							":"+nam+
+            							"\n\t"+des+
+            							"\n\t"+cat+
+            							"\n\t$"+pri+" : "+dat.toString();
+            	System.out.println(x);
+            	rownum = rownum + 1;
+            }
+            System.out.print("\n");
+            resultSet.close();
+            connection.commit();
+    	}
+    	catch (Exception e){
+            System.out.println("Machine Error: "+e);
+            status = 1;
+        }
+        finally {
+            try { if (statement != null) statement.close(); }
+            catch (SQLException e) { System.out.println("Can't close Statement"); }
+        }
+    	
+    	return status;
+    }
+    
+    
+    //Invest
+    //returns:
+    //	-1: invalid amount
+    //	0: success
+    private int invest()
+    {
+    	int status = 0;
+    	
+    	System.out.println("Invest.\nPlease enter amount to invest.");
+    	System.out.print("Amount:  $");
+    	String investString = readInput();
+    	float investAmount;
+    	try { investAmount = Float.parseFloat(investString); }
+        catch (NumberFormatException e) { return -1; }
+    	
+    	try {
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            statement = connection.createStatement();
+                
+            query = "SELECT balance FROM customer WHERE login = '"+userLogin+"'";
+            resultSet = statement.executeQuery(query);
+            float initial = 0;
+            if (resultSet.next()) {
+            	initial = resultSet.getFloat(1); resultSet.close(); }
+            
+            float totalInvestment = initial + investAmount;
+            
+            query = "UPDATE customer set balance = "+totalInvestment+" where login = '"+userLogin+"'";
+            statement.executeQuery(query);
+            connection.commit();
+        }
+        catch (Exception e){
+            System.out.println("Machine Error: "+e);
+            status = 1;
+        }
+        finally {
+            try { if (statement != null) statement.close(); }
+            catch (SQLException e) { System.out.println("Can't close Statement"); }
+        }
+    	
+    	return status;
+    }
+    
+    
+    //Sell Shares
+    //	-2: invalid amount of shares
+    //	-1: don't own that fund
+    //	0: success
+    private int sellShares()
+    {
+    	int status = 0;
+    	
+    	System.out.println("Sell Shares.\nPlease enter share symbol to sell.");
+    	System.out.print("Symbol:   ");
+    	String symbol = readInput();
+    	System.out.print("Number of shares to sell:   ");
+    	String sharesString = readInput();
+    	int numShares;
+    	try { numShares = Integer.parseInt(sharesString); }
+        catch (NumberFormatException e) { return -2; }
+        if (numShares < 1) { return -2; }
+    	
+    	try {
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            statement = connection.createStatement();
+            
+            //check that user owns shares
+            query = "SELECT shares FROM owns WHERE login = '"+userLogin+"' AND symbol = '"+symbol+"'";
+            resultSet = statement.executeQuery(query);
+            int initial = 0;
+            if (resultSet.next()) {
+            	initial = resultSet.getInt(1); resultSet.close(); }
+            else { return -1; }
+            if (initial < 1) { return -1; }
+            
+            //get transaction number
+            query = "SELECT count(trans_id) FROM trxlog";
+            resultSet = statement.executeQuery(query);
+            int id = 0;
+            if (resultSet.next()) {
+            	id = resultSet.getInt(1); resultSet.close(); }
+            else { return 1; }
+            
+            //get today's date
+            query = "SELECT c_date FROM mutualdate";
+            resultSet = statement.executeQuery(query);
+            Date d = null;
+            if (resultSet.next()) {
+            	d = resultSet.getDate(1); resultSet.close(); }
+            else { return 1; }
+            
+            //perform sale
+            query = "ALTER TRIGGER InvestDeposit DISABLE";
+            statement.executeQuery(query);
+            query = "INSERT INTO trxlog " +
+            		"values("+id+", '"+userLogin+"', '"+symbol+"', TO_DATE('"+d.toString()+"', 'yyyy-mm-dd'), 'sell', "+numShares+", 0, 0)";
+            statement.executeQuery(query);
+            query = "ALTER TRIGGER InvestDeposit ENABLE";
+            statement.executeQuery(query);
+            connection.commit();
+        }
+        catch (Exception e){
+            System.out.println("Machine Error: "+e);
+            status = 1;
+        }
+        finally {
+            try { if (statement != null) statement.close(); }
+            catch (SQLException e) { System.out.println("Can't close Statement"); }
+        }
+    	
+    	return status;
+    }
+    
+    
+    //Buy Shares
+    //	-3: invalid entry
+    //	-2: not enough money
+    //	-1: fund doesn't exist
+    //	0: success
+    private int buyShares()
+    {
+    	int status = 0;
+    	
+    	System.out.println("Buy Shares.\nPlease enter your choice.");
+    	System.out.println("\t1: Buy number of shares");
+    	System.out.println("\t2: Buy dollar amount of shares");
+    	System.out.print("Choice:   ");
+    	String choice = readInput();
+    	
+    	if (choice.equals("1")) 
+    	{ 
+    		System.out.println("Please enter the share symbol you would like to buy.");
+    		System.out.print("Symbol:   ");
+    		String symbol = readInput();
+    		System.out.print("Number of Shares:   ");
+    		String num = readInput();
+    		int number = 0;
+            try { number = Integer.parseInt(num); }
+            catch (NumberFormatException e) { return -3;};
+            if (number < 0) { return -3; }
+    		status = buyNumberOfShares(symbol, number); 
+    	}
+    	else if (choice.equals("2"))
+    	{
+    		System.out.println("Please enter the share symbol you would like to buy.");
+    		System.out.print("Symbol:   ");
+    		String symbol = readInput();
+    		System.out.print("Amount:   $");
+    		String am = readInput();
+    		float amount = 0;
+            try { amount = Float.parseFloat(am); }
+            catch (NumberFormatException e) { return -3;};
+            if (amount < 0) { return -3; }
+    		status = buyAmountOfShares(symbol, amount); 
+    	}
+    	else { return -3; }
+    	
+    	return status;
+    }
+    
+    private int buyNumberOfShares(String symbol, int number)
+    {
+    	int status = 0;
+    	
+    	try {
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            statement = connection.createStatement();
+            
+            //get fund price
+            query = "SELECT price FROM closingprice WHERE price = get_fund_price('"+symbol+"') AND symbol = '"+symbol+"'";
+            resultSet = statement.executeQuery(query);
+            float price = 0;
+            if (resultSet.next()) {
+            	price = resultSet.getFloat(1); resultSet.close(); }
+            else { return -1; }
+            if (price <= 0) { return -1; }
+            
+            float totalCost = price * number;
+            
+            //get transaction number
+            query = "SELECT count(trans_id) FROM trxlog";
+            resultSet = statement.executeQuery(query);
+            int id = 0;
+            if (resultSet.next()) {
+            	id = resultSet.getInt(1); resultSet.close(); }
+            else { return 1; }
+            
+            //get today's date
+            query = "SELECT c_date FROM mutualdate";
+            resultSet = statement.executeQuery(query);
+            Date d = null;
+            if (resultSet.next()) {
+            	d = resultSet.getDate(1); resultSet.close(); }
+            else { return 1; }
+            
+            //perform buy
+            query = "SET CONSTRAINT valid_balance DEFERRED";
+            statement.executeQuery(query);
+            query = "INSERT INTO trxlog " +
+            		"values("+id+", '"+userLogin+"', '"+symbol+"', TO_DATE('"+d.toString()+"', 'yyyy-mm-dd'), 'buy', -1, 0, "+totalCost+")";
+            statement.executeQuery(query);
+            connection.commit();
+            
+            //check that it happened
+            query = "SELECT trans_id from trxlog WHERE trans_id = "+id;
+            resultSet = statement.executeQuery(query);
+            int thing = -1;
+            if (resultSet.next()) {
+            	thing = resultSet.getInt(1); resultSet.close(); }
+            else { status =  -2; }
+            if (thing < 0) { status = -2; }
+            connection.commit();
+            
+        }
+        catch (Exception e){
+            System.out.println("Machine Error: "+e);
+            status = 1;
+        }
+        finally {
+            try { if (statement != null) statement.close(); }
+            catch (SQLException e) { System.out.println("Can't close Statement"); }
+        }
+        
+        return status;
+    }
+    
+    private int buyAmountOfShares(String symbol, float amount)
+    {
+    	int status = 0;
+    	
+    	try {
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            statement = connection.createStatement();
+            
+            //get transaction number
+            query = "SELECT count(trans_id) FROM trxlog";
+            resultSet = statement.executeQuery(query);
+            int id = 0;
+            if (resultSet.next()) {
+            	id = resultSet.getInt(1); resultSet.close(); }
+            else { return 1; }
+            
+            //get today's date
+            query = "SELECT c_date FROM mutualdate";
+            resultSet = statement.executeQuery(query);
+            Date d = null;
+            if (resultSet.next()) {
+            	d = resultSet.getDate(1); resultSet.close(); }
+            else { return 1; }
+            
+            //perform buy
+            query = "SET CONSTRAINT valid_balance DEFERRED";
+            statement.executeQuery(query);
+            query = "INSERT INTO trxlog " +
+            		"values("+id+", '"+userLogin+"', '"+symbol+"', TO_DATE('"+d.toString()+"', 'yyyy-mm-dd'), 'buy', -1, 0, "+amount+")";
+         	statement.executeQuery(query);
+            connection.commit();
+            
+            //check that it happened
+            query = "SELECT trans_id from trxlog WHERE trans_id = "+id;
+            resultSet = statement.executeQuery(query);
+            int thing = -1;
+            if (resultSet.next()) {
+            	thing = resultSet.getInt(1); resultSet.close(); }
+            else { status =  -2; }
+            if (thing < 0) { status = -2; }
+            
+            connection.commit();
+        }
+        catch (Exception e){
+            System.out.println("Machine Error: "+e);
+            status = 1;
+        }
+        finally {
+            try { if (statement != null) statement.close(); }
+            catch (SQLException e) { System.out.println("Can't close Statement"); }
+        }
+        
+        return status;
+    }
+    
+    
+    //View Portfolio
+    //	-1: invalid entry
+    //	0: success
+    private int viewPortfolio()
+    {
+    	int status = 0;
+    	
+    	//perform the search
+    	try {
+    		//gets current price for each stock and  current value
+    		query = "SELECT owns.login, owns.symbol, owns.shares, closingprice.price, (owns.shares * closingprice.price) as current_values " +
+    				"FROM owns, mutualdate, closingprice " +
+    				"WHERE closingprice.p_date = get_last_trade_date and closingprice.symbol = owns.symbol and owns.login = '"+userLogin+"'";
+    		connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            statement = connection.createStatement();
+            resultSet = statement.executeQuery(query);
+            
+            //print results
+            int rownum = 1;
+            System.out.println("Stocks owned:  Num Shares, Current Price  ->   Value\n");
+            while (resultSet.next())
+            {
+            	String sym = resultSet.getString(2);
+            	int shares = resultSet.getInt(3);
+            	float price = resultSet.getFloat(4);
+            	float value = resultSet.getFloat(5);
+            	String x = ""+rownum+") "+sym+
+            							":  "+shares+
+            							", $"+price+
+            							"  ->  "+value;
+            	System.out.println(x);
+            	rownum = rownum + 1;
+            }
+            System.out.print("\n");
+            resultSet.close();
+            
+            //gets Cost Value
+            query = "SELECT trxlog.login, trxlog.symbol, sum(trxlog.amount) as cost_values " +
+    				"FROM trxlog " +
+    				"WHERE trxlog.action = 'buy' and trxlog.login = '"+userLogin+"' " +
+    				"GROUP BY  trxlog.login, trxlog.symbol";
+    		connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            statement = connection.createStatement();
+            resultSet = statement.executeQuery(query);
+            
+            //print results
+            rownum = 1;
+            System.out.println("Stocks owned:  Cost Value\n");
+            while (resultSet.next())
+            {
+            	String sym = resultSet.getString(2);
+            	float value = resultSet.getFloat(3);
+            	String x = ""+rownum+") "+sym+
+            							":  $"+value;
+            	System.out.println(x);
+            	rownum = rownum + 1;
+            }
+            System.out.print("\n");
+            resultSet.close();
+            
+            //gets Sum Sales
+            query = "SELECT trxlog.login, trxlog.symbol, sum(trxlog.amount) as cost_values " +
+    				"FROM trxlog " +
+    				"WHERE trxlog.action = 'buy' and trxlog.login = '"+userLogin+"' " +
+    				"GROUP BY  trxlog.login, trxlog.symbol";
+    		connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            statement = connection.createStatement();
+            resultSet = statement.executeQuery(query);
+            
+            //print results
+            rownum = 1;
+            System.out.println("Stocks owned:  Cost Value\n");
+            while (resultSet.next())
+            {
+            	String sym = resultSet.getString(2);
+            	float value = resultSet.getFloat(3);
+            	String x = ""+rownum+") "+sym+
+            							":  $"+value;
+            	System.out.println(x);
+            	rownum = rownum + 1;
+            }
+            System.out.print("\n");
+            resultSet.close();
+            
+            
+            connection.commit();
+    	}
+    	catch (Exception e){
+            System.out.println("Machine Error: "+e);
+            status = 1;
+        }
+        finally {
+            try { if (statement != null) statement.close(); }
+            catch (SQLException e) { System.out.println("Can't close Statement"); }
+        }
+    	
+    	return status;
+    }
+    
     
     //\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\ Admin Functions \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
     //-----------------------------------------------------------------------------------
-    
     //Update Date
     //returns:
     //	-1: error
@@ -313,7 +858,6 @@ public class BetterFuture {
     	return status;
     }
     
-    //-----------------------------------------------------------------------------------
     
     //Register Customer
     //returns:
@@ -408,7 +952,6 @@ public class BetterFuture {
     	return status;
     }
     
-    //-----------------------------------------------------------------------------------
     
     //Add Mutual Fund
     //returns:
@@ -496,7 +1039,6 @@ public class BetterFuture {
     	return status;
     }
     
-    //-----------------------------------------------------------------------------------
     
     //Update Mutual Fund
     //	-2: Invalid balance amound
@@ -530,7 +1072,7 @@ public class BetterFuture {
             	if (resultSet.next()) { System.out.println("has next");
             		matches = resultSet.getInt(1); resultSet.close(); }
             	if (matches > 0)
-            		status = updateWueryMutualFund(symbol);
+            		status = updateQueryMutualFund(symbol);
             	else 
             		status = insertQueryMutualFund(symbol); 
             }
@@ -549,7 +1091,7 @@ public class BetterFuture {
     	return status;
     }
     
-    private int updateWueryMutualFund(String symbol)
+    private int updateQueryMutualFund(String symbol)
     {
     	System.out.println("UPDATE");
     	int status = 0;
@@ -621,6 +1163,185 @@ public class BetterFuture {
         }
     	
     	return status;
+    }
+    
+    
+    //Volume Stats
+    //	-1: invalid entry
+    //	0: success
+    private int volumeStats()
+    {
+    	int status = 0;
+    	System.out.println("Volume Statistics.  Top 'k' highest volume categories (highest count of shares sold), for the past 'x' months.");
+    	System.out.print("'x':  ");
+    	String monthString = readInput();
+    	int x = 0;
+        try { x = Integer.parseInt(monthString); }
+        catch (NumberFormatException e) { System.out.println("Invalid entry."); return -1;}
+        if (x < 1) return -1;
+        
+        System.out.print("'k':  ");
+    	String kString = readInput();
+    	int k = 0;
+        try { k = Integer.parseInt(kString); }
+        catch (NumberFormatException e) { System.out.println("Invalid entry."); return -1;}
+        if (k < 1) return -1;
+    	
+    	try {
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            statement = connection.createStatement();
+            
+            query = "SELECT * FROM (" +
+            			"SELECT mutualfund.category, sum(trxlog.num_shares) as highestVolume " +
+            			"FROM trxlog, mutualdate, mutualfund " +
+            			"WHERE trxlog.action = 'sell' and ADD_MONTHS(mutualdate.c_date, -"+x+") <= trxlog.t_date AND trxlog.symbol = mutualfund.symbol " +
+            			"GROUP BY  mutualfund.category " +
+            			"ORDER BY sum(trxlog.num_shares) DESC " +
+            		") WHERE ROWNUM <= "+k;
+            resultSet = statement.executeQuery(query);
+            
+            //print results
+            int rownum = 1;
+            System.out.println("Top "+k+" highest volume categories for the past "+x+" months:\n");
+            while (resultSet.next())
+            {
+            	String sym = resultSet.getString(1);
+            	int numShares = resultSet.getInt(2);
+            	System.out.println("\t"+rownum+")  "+sym+":  "+numShares+" shares");
+            	rownum = rownum + 1;
+            }
+            System.out.print("\n");
+            resultSet.close();
+            connection.commit();
+        }
+        catch (Exception e){
+            System.out.println("Machine Error: "+e);
+            status = 1;
+        }
+        finally {
+            try { if (statement != null) statement.close(); }
+            catch (SQLException e) { System.out.println("Can't close Statement"); }
+        }
+    	
+    	return status;
+    }
+    
+    
+    //Investor Stats
+    //	-1: invalid entry
+    //	0: success
+    private int investorStats()
+    {
+    	int status = 0;
+    	System.out.println("Investor Statistics.  Top 'k' investors (highest invested amount), for the past 'x' months.");
+    	System.out.print("'x':  ");
+    	String monthString = readInput();
+    	int x = 0;
+        try { x = Integer.parseInt(monthString); }
+        catch (NumberFormatException e) { System.out.println("Invalid entry."); return -1;}
+        if (x < 1) return -1;
+        
+        System.out.print("'k':  ");
+    	String kString = readInput();
+    	int k = 0;
+        try { k = Integer.parseInt(kString); }
+        catch (NumberFormatException e) { System.out.println("Invalid entry."); return -1;}
+        if (k < 1) return -1;
+    	
+    	try {
+            connection.setAutoCommit(false);
+            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            statement = connection.createStatement();
+            
+            query = "SELECT * FROM (" +
+            			"SELECT trxlog.login, sum(trxlog.amount) as highestInvest " +
+            			"FROM trxlog, mutualdate " +
+            			"WHERE trxlog.action = 'buy' and ADD_MONTHS(mutualdate.c_date, -"+x+") <= trxlog.t_date " +
+            			"GROUP BY  trxlog.login " +
+            			"ORDER BY sum(trxlog.amount) DESC " +
+            		") WHERE ROWNUM <= "+k;
+            resultSet = statement.executeQuery(query);
+            
+            //print results
+            int rownum = 1;
+            System.out.println("Top "+k+" most investors (highest invested amount) for the past "+x+" months:\n");
+            while (resultSet.next())
+            {
+            	String sym = resultSet.getString(1);
+            	float numShares = resultSet.getFloat(2);
+            	System.out.println("\t"+rownum+")  "+sym+":  $"+numShares+" invested");
+            	rownum = rownum + 1;
+            }
+            System.out.print("\n");
+            resultSet.close();
+            connection.commit();
+        }
+        catch (Exception e){
+            System.out.println("Machine Error: "+e);
+            status = 1;
+        }
+        finally {
+            try { if (statement != null) statement.close(); }
+            catch (SQLException e) { System.out.println("Can't close Statement"); }
+        }
+    	
+    	return status;
+    }
+    
+    
+    
+    //\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\ Other Functions \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
+    //-----------------------------------------------------------------------------------
+    
+    //Quits out of the application safely
+    private void quitApplication()
+    {
+        System.out.println("Thank you for using the Better Future Investment application.  Goodbye!");
+        try { connection.close(); }
+        catch (Exception e) { System.out.println("Error closing connection"); }
+        System.exit(1);
+    }
+    
+    //Prints the options that a user can perform
+    private void printUserOptions()
+    {
+        System.out.println("\t1: Browse Mutual Funds");
+        System.out.println("\t2: Search Mutual Funds");
+        System.out.println("\t3: Invest");
+        System.out.println("\t4: Sell Shares");
+        System.out.println("\t5: Buy Shares");
+        System.out.println("\t6: Change Allocation Preference");
+        System.out.println("\t7: View Portfolio");
+        System.out.println("\t0: Exit");
+    }
+    
+    //Prints the options that an admin can perform
+    private void printAdminOptions()
+    {
+        System.out.println("\t1: Register New Customer");
+        System.out.println("\t2: Update Share Quotes");
+        System.out.println("\t3: Add New Mutual Fund");
+        System.out.println("\t4: Update Date");
+        System.out.println("\t5: View Volume Statistics");
+        System.out.println("\t6: View Investor Statistics");
+        System.out.println("\t0: Exit");
+    }
+    
+    //Gets the user's input from the command line
+    private String readInput()
+    {
+        String result = "";
+        try
+        {
+            result = reader.readLine();
+        }
+        catch (IOException e)
+        {
+            System.out.println("IOException occurred.  Quiting Application.");
+            quitApplication();
+        }
+        return result;
     }
     
 }
