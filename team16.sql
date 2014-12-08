@@ -575,12 +575,10 @@ commit;
 --**************************************************************************************************
 -- 										Functions
 --**************************************************************************************************
-
 ------------Get Fund Price--------------
 -- Stephen T. Ruzzini
-CREATE OR REPLACE FUNCTION get_fund_price(f_symbol in varchar2) return float
+CREATE OR REPLACE FUNCTION get_last_trade_date return date
 IS
-curr_price float;
 currdate date;
 yesterdate date;
 BEGIN
@@ -593,6 +591,22 @@ BEGIN
 	else
 		yesterdate := currdate - 1;
 	end if;
+
+	return (yesterdate);
+END;
+/
+commit;
+
+------------Get Fund Price--------------
+-- Stephen T. Ruzzini
+CREATE OR REPLACE FUNCTION get_fund_price(f_symbol in varchar2) return float
+IS
+curr_price float;
+currdate date;
+yesterdate date;
+BEGIN
+	-- get date of last closing price
+	yesterdate := get_last_trade_date;
 
 	-- get price of fund on last closing date
 	select nvl(price, 0) into curr_price 

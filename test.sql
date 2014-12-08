@@ -1,6 +1,5 @@
-CREATE OR REPLACE FUNCTION get_fund_price(f_symbol in varchar2) return float
+CREATE OR REPLACE FUNCTION get_last_trade_date return date
 IS
-curr_price float;
 currdate date;
 yesterdate date;
 BEGIN
@@ -14,11 +13,7 @@ BEGIN
 		yesterdate := currdate - 1;
 	end if;
 
-	-- get price of fund on last closing date
-	select nvl(price, 0) into curr_price 
-		from closingprice 
-		where (symbol = f_symbol AND  p_date = yesterdate);
-	return (curr_price);
+	return (yesterdate);
 END;
 /
 commit;
