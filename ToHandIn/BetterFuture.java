@@ -1369,7 +1369,7 @@ public class BetterFuture {
             query = "SELECT * FROM (" +
             			"SELECT mutualfund.category, sum(trxlog.num_shares) as highestVolume " +
             			"FROM trxlog, mutualdate, mutualfund " +
-            			"WHERE trxlog.action = 'sell' and ADD_MONTHS(mutualdate.c_date, -"+x+") <= trxlog.t_date AND trxlog.symbol = mutualfund.symbol " +
+            			"WHERE trxlog.action = 'buy' and ADD_MONTHS(mutualdate.c_date, -"+x+") <= trxlog.t_date AND trxlog.symbol = mutualfund.symbol " +
             			"GROUP BY  mutualfund.category " +
             			"ORDER BY sum(trxlog.num_shares) DESC " +
             		") WHERE ROWNUM <= "+k;
